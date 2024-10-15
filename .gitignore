@@ -60,3 +60,7 @@ midi
 testrc
 qtest
 *.mid
+*.png
+
+# Copy of S Dixon demo not for repo
+midi.c

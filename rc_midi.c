@@ -8,13 +8,13 @@
 #include <cpm.h>
 #include <stdbool.h>
 
-Event* createEvent(long delta, unsigned char status, int num_data, unsigned char * data)
+Event* createEvent(uint32_t delta, uint8_t status, uint8_t data_byte_1, uint8_t data_byte_2)
 {
     Event* midi_event = (Event*)malloc(sizeof(Event));
     midi_event->delta = delta;
     midi_event->status = status;
-    midi_event->num_data = num_data;
-    midi_event->data = data;
+    midi_event->data_byte_1 = data_byte_1;
+    midi_event->data_byte_2 = data_byte_2;
     midi_event->next = NULL;
     return midi_event;
 }
@@ -29,12 +29,12 @@ Queue* createQueue()
     return q;
 }
 
-void enqueue(Queue* q, long delta, unsigned char status, int num_data, unsigned char * data)
+void enqueue(Queue* q, uint32_t delta, uint8_t status, uint8_t data_byte_1, uint8_t data_byte_2)
 {
     // If queue is empty, the new event is both the head & tail
-    Event* midi_event = createEvent(delta, status, num_data, data);
+    Event* midi_event = createEvent(delta, status, data_byte_1, data_byte_2);
     q->size++;
-    printf("Enqueue: size %d \n",q->size);
+    printf("Enqueue: size %d \n",(uint16_t)q->size);
     if (q->tail == NULL) {
         q->head = q->tail = midi_event;
         return;
@@ -67,6 +67,35 @@ Event* dequeue(Queue* q)
 
 
 
+void wait(uint16_t siWaitNow){
+    
+    int d = 0;
+    while (siWaitNow > 0){
+        
+        for (int wd = 0; wd<320; wd++) {
+            // do something to waste time
+            d++;
+        }
+        if(siWaitNow % 100 == 0)
+            printf("%d ",siWaitNow);
+        siWaitNow--;
+    }
+}
+
+void wait_delta(uint32_t delta, uint16_t delta_weight){
+
+    int d = 0;
+    while (delta > 0){
+        
+        for (uint16_t wd = 0; wd < delta_weight; wd++) {
+            // do something to waste time
+            d++;
+        }
+        if(delta % 100 == 0)
+            printf("%d ",(uint16_t)delta);
+        delta--;
+    }
+}
 
 
 uint8_t bdos_read_portB(){
@@ -78,19 +107,18 @@ uint8_t bdos_read_portB(){
 
 void bdos_write_portB(uint8_t d){
     
+    printf(" %x",d);
     bdos(CPM_WPUN,d);
     
 }
 
-void send_MIDI_message(uint8_t msg, uint8_t num_data, uint8_t * data){
+void send_MIDI_message(uint8_t status, uint8_t data_byte_1, uint8_t data_byte_2){
     
-    bdos_write_portB(msg);
-    //bdos_write_portB(note);
-    //bdos_write_portB(vel);
-    for(int i = 0; i < num_data; i++)
-    {
-        bdos_write_portB(data[i]);
-    }
+    bdos_write_portB(status);
+    bdos_write_portB(data_byte_1);
+    if(data_byte_1 & ~0x80)
+        bdos_write_portB(data_byte_2);
+    printf("\n");
 }
 
 
