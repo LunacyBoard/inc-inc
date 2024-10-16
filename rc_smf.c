@@ -1,5 +1,7 @@
 // Routines for handling of Standard MIDI files
 
+//  zcc +cpm -create-app -o qtest rc_smf.c rc_midi.c -DAMALLOC
+
 #include <stdint.h>
 #include <stdio.h> 
 #include <stdlib.h>
@@ -107,7 +109,7 @@ int main(int argc, char *argv[])
     uint32_t event_cnt, get_delta, meta_length, d_weight;
     uint16_t tempo;
     tempo = (uint16_t)120; // tempo default 120 bpm
-    d_weight = CYCLES_PM / 57600U; // (uint32_t)head_chunk.division * (uint32_t)tempo;
+    d_weight = CYCLES_PM / 97600U; // (uint32_t)head_chunk.division * (uint32_t)tempo;  // 57600U; 
     printf("tempo:%d, ppqn:%d, delta_weight:%d \n", tempo, head_chunk.division, (uint16_t)d_weight);
     uint8_t data_bytes[6];
 
@@ -222,7 +224,7 @@ int main(int argc, char *argv[])
                 fread(&data2, sizeof(data2), 1, fptr);
                 event_cnt++;
                 channel = status_byte & 0x0F;
-                printf("(%d)Note On:%d,%d,%d\n",(uint16_t)event_cnt,channel,data1, data2);
+                printf("(%d)  Note On:%d,%d,%d\n",(uint16_t)event_cnt,channel,data1, data2);
                 enqueue(q, get_delta, status_byte, data1, data2);
                 break;
 
@@ -231,24 +233,46 @@ int main(int argc, char *argv[])
                 fread(&data2, sizeof(data2), 1, fptr);
                 event_cnt++;
                 channel = status_byte & 0x0F;
-                printf("(%d)Note Off:%d,%d,%d\n",(uint16_t)event_cnt,channel,data1, data2);
+                printf("(%d)  Note Off:%d,%d,%d\n",(uint16_t)event_cnt,channel,data1, data2);
                 enqueue(q, get_delta, status_byte, data1, data2);
                 break;
 
             case POLY_PRESS :
-
+                fread(&data2, sizeof(data2), 1, fptr);
+                event_cnt++;
+                channel = status_byte & 0x0F;
+                printf("(%d)  Poly Pressure:%d,%d,%d\n",(uint16_t)event_cnt,channel,data1, data2);
+                enqueue(q, get_delta, status_byte, data1, data2);
                 break;
+
             case CTRL_CHG   :
-
+                fread(&data2, sizeof(data2), 1, fptr);
+                event_cnt++;
+                channel = status_byte & 0x0F;
+                printf("(%d)  Control Change:%d,%d,%d\n",(uint16_t)event_cnt,channel,data1, data2);
+                enqueue(q, get_delta, status_byte, data1, data2);
                 break;
+
             case PROG_CHG   :
-
+                // No second data byte
+                channel = status_byte & 0x0F;
+                printf("(%d)  Program Change:%d,%d,-\n",(uint16_t)event_cnt,channel,data1);
+                enqueue(q, get_delta, status_byte, data1, 255);
                 break;
+
             case CH_PRESS   :
-
+                // No second data byte
+                channel = status_byte & 0x0F;
+                printf("(%d)  Channel Pressure:%d,%d,-\n",(uint16_t)event_cnt,channel,data1);
+                enqueue(q, get_delta, status_byte, data1, 255);
                 break;
-            case PITCH_BEND :
 
+            case PITCH_BEND :
+                fread(&data2, sizeof(data2), 1, fptr);
+                event_cnt++;
+                channel = status_byte & 0x0F;
+                printf("(%d)  Pitch Bend:%d,%d,%d\n",(uint16_t)event_cnt,channel,data1, data2);
+                enqueue(q, get_delta, status_byte, data1, data2);
                 break;
                
             default:
@@ -264,15 +288,15 @@ int main(int argc, char *argv[])
     fclose(fptr); 
 
     // Test the queue
+    Event *get = malloc(sizeof(Event));
     while(q->size > 0)
     {
-        Event *get = malloc(sizeof(Event));
         get = dequeue(q);
-        printf("delta:%d d_wt:%d | d1:%x d2:%x\n",(uint16_t)get->delta, (uint16_t)d_weight, get->data_byte_1, get->data_byte_2);
+        printf("delta:%d d_wt:%d | d1:%x d2:%x ",(uint16_t)get->delta, (uint16_t)d_weight, get->data_byte_1, get->data_byte_2);
         wait_delta(get->delta, (uint16_t)d_weight);
         send_MIDI_message(get->status, get->data_byte_1, get->data_byte_2);
-        free(get);
     }
+    free(get);
 
     return 0;
 }

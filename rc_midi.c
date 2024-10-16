@@ -34,7 +34,7 @@ void enqueue(Queue* q, uint32_t delta, uint8_t status, uint8_t data_byte_1, uint
     // If queue is empty, the new event is both the head & tail
     Event* midi_event = createEvent(delta, status, data_byte_1, data_byte_2);
     q->size++;
-    printf("Enqueue: size %d \n",(uint16_t)q->size);
+    printf("Q %d   ",(uint16_t)q->size);
     if (q->tail == NULL) {
         q->head = q->tail = midi_event;
         return;
@@ -60,7 +60,7 @@ Event* dequeue(Queue* q)
     if (q->head == NULL)
         q->tail = NULL;
     q->size--;
-    printf("Dequeued: size %d \n",q->size);
+    printf("\nQ %d   ",q->size);
     // Return the event at the front
     return temp;
 }
@@ -92,7 +92,7 @@ void wait_delta(uint32_t delta, uint16_t delta_weight){
             d++;
         }
         if(delta % 100 == 0)
-            printf("%d ",(uint16_t)delta);
+            printf("~%d~",(uint16_t)delta/100);
         delta--;
     }
 }
@@ -115,10 +115,9 @@ void bdos_write_portB(uint8_t d){
 void send_MIDI_message(uint8_t status, uint8_t data_byte_1, uint8_t data_byte_2){
     
     bdos_write_portB(status);
-    bdos_write_portB(data_byte_1);
+    bdos_write_portB(data_byte_1); // First data byte is always output
     if(data_byte_1 & ~0x80)
-        bdos_write_portB(data_byte_2);
-    printf("\n");
+        bdos_write_portB(data_byte_2); // If 2nd byte is 255 then it is not output
 }
 
 
