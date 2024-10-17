@@ -38,15 +38,6 @@
 //#include <stdlib.h>
 
 // MIDI event contains status byte plus 0-2 data bytes, here tagged with the time it will be played and link to next event
-typedef struct Event_OLD
-{
-    uint32_t delta;
-    unsigned char status;
-    int num_data;
-    unsigned char * data;
-    struct Event* next;
-} Event_OLD;
-
 typedef struct Event
 {
     uint32_t delta;
@@ -60,7 +51,7 @@ typedef struct Event
 typedef struct Queue
 {
     Event *head, *tail;
-    int size;
+    uint16_t size;
 } Queue;
 
 // MIDI Queue functions

@@ -22,7 +22,9 @@ Event* createEvent(uint32_t delta, uint8_t status, uint8_t data_byte_1, uint8_t 
 Queue* createQueue()
 {
     // Reserve memory for queue and set head & tail to empty
+    #ifdef DEBUG
     printf("Create Q - \n");
+    #endif
     Queue* q = (Queue*)malloc(sizeof(Queue));
     q->head = q->tail = NULL;
     q->size = 0;
@@ -34,7 +36,9 @@ void enqueue(Queue* q, uint32_t delta, uint8_t status, uint8_t data_byte_1, uint
     // If queue is empty, the new event is both the head & tail
     Event* midi_event = createEvent(delta, status, data_byte_1, data_byte_2);
     q->size++;
+    #ifdef DEBUG
     printf("Q %d   ",(uint16_t)q->size);
+    #endif
     if (q->tail == NULL) {
         q->head = q->tail = midi_event;
         return;
@@ -60,27 +64,13 @@ Event* dequeue(Queue* q)
     if (q->head == NULL)
         q->tail = NULL;
     q->size--;
+    #ifdef DEBUG
     printf("\nQ %d   ",q->size);
+    #endif
     // Return the event at the front
     return temp;
 }
 
-
-
-void wait(uint16_t siWaitNow){
-    
-    int d = 0;
-    while (siWaitNow > 0){
-        
-        for (int wd = 0; wd<320; wd++) {
-            // do something to waste time
-            d++;
-        }
-        if(siWaitNow % 100 == 0)
-            printf("%d ",siWaitNow);
-        siWaitNow--;
-    }
-}
 
 void wait_delta(uint32_t delta, uint16_t delta_weight){
 
@@ -91,8 +81,10 @@ void wait_delta(uint32_t delta, uint16_t delta_weight){
             // do something to waste time
             d++;
         }
+        #ifdef DEBUG
         if(delta % 100 == 0)
             printf("~%d~",(uint16_t)delta/100);
+        #endif
         delta--;
     }
 }
@@ -107,7 +99,9 @@ uint8_t bdos_read_portB(){
 
 void bdos_write_portB(uint8_t d){
     
+    #ifdef DEBUG
     printf(" %x",d);
+    #endif
     bdos(CPM_WPUN,d);
     
 }

@@ -7,6 +7,7 @@ void WriteVarLen(register uint32_t value, FILE *outfile);
 
 uint32_t ReadVarLen(FILE *infile, uint8_t *bytes_read);
 
+#define MAX_QUEUES 100
 
 
 
