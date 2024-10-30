@@ -8,6 +8,8 @@
 #include <cpm.h>
 #include <stdbool.h>
 
+//#define DEBUG
+
 Event* createEvent(uint32_t delta, uint8_t status, uint8_t data_byte_1, uint8_t data_byte_2)
 {
     Event* midi_event = (Event*)malloc(sizeof(Event));
@@ -83,7 +85,7 @@ void wait_delta(uint32_t delta, uint16_t delta_weight){
         }
         #ifdef DEBUG
         if(delta % 100 == 0)
-            printf("~%d~",(uint16_t)delta/100);
+            printf("~%d~",(uint16_t)(delta/100));
         #endif
         delta--;
     }
@@ -133,5 +135,19 @@ void main()
     get = dequeue(q);
 
     printf("got it %d \n",(int)get->delta);
+}
+*/
+/*
+void main()
+{
+    printf("START");
+    wait_delta(480*4*60, 8);
+    printf("END");
+
+printf("START");
+    wait_delta(480*4*60, 30);
+    printf("END");
+
+    return 0;
 }
 */

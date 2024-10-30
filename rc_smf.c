@@ -1,17 +1,15 @@
 // Routines for handling of Standard MIDI files
 
-//  zcc +cpm -create-app -o qtest rc_smf.c rc_midi.c -DAMALLOC
 
 #include <stdint.h>
 #include <stdio.h> 
 #include <stdlib.h>
 #include <float.h>
+#include <string.h>
 #include <byteswap.h>
 #include "rc_smf.h"
 #include "rc_midi.h"
-
-// #define DEBUG
-
+//#define DEBUG
 
 // Routines for handling variable length numbers
 // from https://www.cs.cmu.edu/~music/cmsip/readings/Standard-MIDI-file-format-updated.pdf
@@ -29,7 +27,7 @@ void WriteVarLen(register uint32_t value, FILE *outfile)
     }
     while (1==1)
     {
-        putc(buffer, outfile);
+        putc((int)buffer, outfile);
         if (buffer & 0x80)
             buffer >>= 8;
         else
@@ -58,32 +56,18 @@ uint32_t ReadVarLen(FILE *infile, uint8_t *bytes_read)
 }
 
 //
-typedef struct 
-{
-    unsigned char type[4];
-    uint32_t length;
-    uint16_t format;
-    uint16_t ntrks;
-    uint16_t division;
-} headerChunk;
 
-typedef struct 
-{
-    unsigned char type[4];
-    uint32_t length;
-} trackChunk;
 
-int main(int argc, char *argv[])
+
+headerChunk *smf_to_queue(char *smf_filename, Queue **track_queues, trackMeta *meta_data_out)
 {
     // Open file
     FILE *fptr;
 
-    char * smf_name;
-    smf_name = argc > 1 ? argv[1] : "INC0.MID";
-    printf("Loading file: %s\n", smf_name);
+    printf("Loading file: %s\n", smf_filename);
 
-    if ((fptr = fopen(smf_name,"rb")) == NULL){
-       printf("Error! opening file %s", smf_name);
+    if ((fptr = fopen(smf_filename,"rb")) == NULL){
+       printf("Error! opening file %s", smf_filename);
        // Program exits if the file pointer returns NULL.
        exit(1);
    }
@@ -104,17 +88,15 @@ int main(int argc, char *argv[])
         , head_chunk.division);
 
     // Read through each of the tracks
-    
+   
     trackChunk *track_chunks = malloc(head_chunk.ntrks * sizeof *track_chunks);
-    Queue *track_queues[MAX_QUEUES];
+    //Queue *track_queues[MAX_QUEUES];
     
     printf("Malloc %d\n",(head_chunk.ntrks * sizeof *track_chunks));
     uint8_t get_event_byte, status_byte, running, var_len_bytes, meta_type, channel, data1, data2, end_of_track;
-    uint32_t event_cnt, get_delta, meta_length, d_weight,meta_tempo;
-    uint16_t tempo;
-    tempo = (uint16_t)120; // tempo default 120 bpm
+    uint32_t event_cnt, get_delta, meta_length, d_weight, meta_tempo;
     d_weight = CYCLES_PM / 97600U; // (uint32_t)head_chunk.division * (uint32_t)tempo;  // 57600U; 
-    printf("tempo:%d, ppqn:%d, delta_weight:%d \n", tempo, head_chunk.division, (uint16_t)d_weight);
+    printf("ppqn:%d, delta_weight:%d \n", head_chunk.division, (uint16_t)d_weight);
     uint8_t data_bytes[6];
 
     
@@ -136,6 +118,14 @@ int main(int argc, char *argv[])
         running = 0;
         event_cnt = 0;
         end_of_track = 0;
+
+        // Fill the metadata with basic info that can be overwritten by actual metadata or not
+        meta_data_out->track_name[tk] = malloc(sizeof("Track xxxxx"));
+        sprintf((char *)meta_data_out->track_name[tk], "Track %d", tk);
+        meta_data_out->inst_name[tk] = malloc(sizeof("Instrument xxxxx"));
+        sprintf((char *)meta_data_out->inst_name[tk], "Inst %d", tk);
+
+
         while(event_cnt < track_chunks[tk].length && end_of_track == 0)
         {
             // Get the delta time for the midi event, increase count by number of bytes in variable length field
@@ -187,12 +177,12 @@ int main(int argc, char *argv[])
                     printf("<Meta Event %x> %d\n", meta_type, (uint16_t)meta_length);
                     //#endif
                     event_cnt = event_cnt + meta_length + var_len_bytes;
-                    uint8_t *meta_bytes = malloc(sizeof(uint8_t) * meta_length);
+                    uint8_t *meta_bytes = malloc(sizeof(uint8_t) * (uint16_t)meta_length);
 
                     if(meta_length > 0)
                     {    
                         fread(meta_bytes, sizeof(uint8_t), (size_t)meta_length, fptr);
-                        #ifdef DEBUG
+                        //#ifdef DEBUG
                         printf("event_cnt=%d, meta_length=%d, var_len_bytes=%d\n",(uint16_t)event_cnt, (uint16_t)meta_length, (uint16_t)var_len_bytes);
                         printf("Meta Text Event:%x,%d\n -->", meta_type, (uint16_t)meta_length);
                         
@@ -201,7 +191,7 @@ int main(int argc, char *argv[])
                             printf("%x ", meta_bytes[show_bytes]);
                         }
                         printf("\n");
-                        #endif
+                        //#endif
                        
                     }
 
@@ -213,7 +203,25 @@ int main(int argc, char *argv[])
                     case MTA_TX_TEXT:   
                     case MTA_TX_COPYRT: 
                     case MTA_TX_SEQNAME:
+                        if(meta_length > 0)
+                        {
+                            //printf("trk %d, meta: %s \n", tk, meta_data_out->track_name[tk]);
+                            free(meta_data_out->track_name[tk]);
+                            meta_data_out->track_name[tk] = malloc((size_t)meta_length + 1);
+                            strcpy((char *)meta_data_out->track_name[tk], (char *)meta_bytes);
+                            printf("trk %d, meta: %s \n", tk, meta_data_out->track_name[tk]);
+                        }
+                        break;
                     case MTA_TX_INSNAME:
+                        if(meta_length > 0)
+                        {
+                            //printf("inst %d, meta: %s \n", tk, meta_data_out->inst_name[tk]);
+                            free(meta_data_out->inst_name[tk]);
+                            meta_data_out->inst_name[tk] = malloc((size_t)meta_length + 1);
+                            strcpy((char *)meta_data_out->inst_name[tk], (char *)meta_bytes);
+                            printf("inst %d, meta: %s \n", tk, meta_data_out->inst_name[tk]);
+                        }
+                        break;
                     case MTA_TX_LYRIC:  
                     case MTA_TX_MARKER: 
                     case MTA_TX_CUE:
@@ -229,10 +237,17 @@ int main(int argc, char *argv[])
                         #endif
                         break;
                     case MTA_SET_TEMPO:
+                        // Microseconds per midi quarter note
+                        // delta is ticks per quarter note, i.e. meta_tempo / division = length of delta pulse
+                        // bpm = 60 / meta_tempo * 1e6 
+
                         //367649
+                        // inc0.mid  500,000    -> bpm 120, delta with div 480 = 1042
+                        // gravity   370,370    96ppqn = 3858
                         meta_tempo = ((uint32_t)meta_bytes[0]<<16)|((uint32_t)meta_bytes[1]<<8)|((uint32_t)meta_bytes[2]);
                         //float bpm = (60.0 / (float)meta_tempo * 1e6);
-                        printf("Meta Tempo = %d %d %d -> %d -> %d bpm \n", meta_bytes[0],meta_bytes[1],meta_bytes[2],(uint16_t)meta_tempo, 0);
+                        d_weight = (meta_tempo / head_chunk.division) / DELTA_ADJUST;
+                        printf("Meta Tempo = %d %d %d -> %d -> %d d_wt \n", meta_bytes[0],meta_bytes[1],meta_bytes[2],(uint16_t)meta_tempo, (uint16_t)d_weight);
                     case MTA_SMPTE_OFF:
                     case MTA_TIME_SIG:
                     case MTA_KEY_SIG:
@@ -325,71 +340,12 @@ int main(int argc, char *argv[])
 
     free(track_chunks);
 
+    // Save the header info to return it
+    headerChunk *meta_header = malloc(sizeof(headerChunk));
+    *meta_header = head_chunk;
+
     fclose(fptr); 
 
-    // Test the queues
-    Event *next_q_event[MAX_QUEUES];
-    // Event *get = malloc(sizeof(Event));
 
-    uint16_t running_tracks = 0;
-    uint32_t next_delta = INT32_MAX; // Running count of the shortest delta value in the next events
-
-    // Load the first event from each track queue and identify the first
-    for(uint16_t tk = 1; tk < head_chunk.ntrks; tk++)
-    {
-        if(track_queues[tk]->size > 0)
-            running_tracks++;
-
-        next_q_event[tk] = dequeue(track_queues[tk]);
-        if(next_q_event[tk]->delta < next_delta)
-            next_delta = next_q_event[tk]->delta;
-    }
-
-    while(running_tracks > 0)
-    {
-        // Adjust the stored deltas by the amount of the shortest (next) delta
-        for(uint16_t tk = 1; tk < head_chunk.ntrks; tk++)
-        { 
-            next_q_event[tk]->delta -= next_delta;
-        }
-
-        // Wait for the specified time
-        wait_delta(next_delta, (uint16_t)d_weight);
-
-        // Reset the next delta counter and recalculate
-        // at the same time play any items with delta == 0
-        next_delta = INT32_MAX;
-        running_tracks = 0;
-        for(uint16_t tk = 1; tk < head_chunk.ntrks; tk++)
-        { 
-            if(next_q_event[tk]->delta == 0)
-            {
-                // Send the midi message and replace the event with the next one in the respective queue
-                send_MIDI_message(next_q_event[tk]->status, next_q_event[tk]->data_byte_1, next_q_event[tk]->data_byte_2);
-
-                while(track_queues[tk]->size > 0 && next_q_event[tk]->delta == 0)
-                {
-                    next_q_event[tk] = dequeue(track_queues[tk]);
-                    // keep playing any more dequeued events with zero delta time
-                    if(next_q_event[tk]->delta == 0)
-                    {
-                        send_MIDI_message(next_q_event[tk]->status, next_q_event[tk]->data_byte_1, next_q_event[tk]->data_byte_2);
-                    }
-                }
-            }
-            // recalculate the shortest delta and number of tracks still running
-            if(next_q_event[tk]->delta < next_delta)
-                next_delta = next_q_event[tk]->delta;
-            if(track_queues[tk]->size > 0)
-                running_tracks++;
-            printf("TR%d:%d -- ",tk,(uint16_t)track_queues[tk]->size);
-        }
-        printf("Running tracks:%d \n", running_tracks);
-    }
-    // DONE!
-    free(track_chunks);
-    free(track_queues);
-    printf("Ta daaaaa!");
-    return 0;
+    return meta_header;
 }
-
